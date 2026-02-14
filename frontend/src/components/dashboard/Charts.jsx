@@ -36,11 +36,17 @@ export default function Charts({ data, cumulative }) {
             <Card title="Thread Latency Distribution" delay={2} className="min-h-[350px]">
                 <ResponsiveContainer width="100%" height={300}>
                     <BarChart data={data}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.5} />
-                        <XAxis dataKey="thread" stroke="#94a3b8" tick={{ fontSize: 12, fontFamily: 'monospace' }} />
-                        <YAxis stroke="#94a3b8" tick={{ fontSize: 12, fontFamily: 'monospace' }} />
-                        <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255,255,255,0.05)' }} />
-                        <Bar dataKey="time" name="Latency (ns)" fill="#38bdf8" radius={[4, 4, 0, 0]} animationDuration={1500} />
+                        <defs>
+                            <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0%" stopColor="#38bdf8" stopOpacity={1} />
+                                <stop offset="100%" stopColor="#38bdf8" stopOpacity={0.3} />
+                            </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.3} vertical={false} />
+                        <XAxis dataKey="thread" stroke="#94a3b8" tick={{ fontSize: 12, fontFamily: 'monospace' }} axisLine={false} tickLine={false} />
+                        <YAxis stroke="#94a3b8" tick={{ fontSize: 12, fontFamily: 'monospace' }} axisLine={false} tickLine={false} />
+                        <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255,255,255,0.03)' }} />
+                        <Bar dataKey="time" name="Latency (ns)" fill="url(#barGradient)" radius={[6, 6, 0, 0]} animationDuration={500} />
                     </BarChart>
                 </ResponsiveContainer>
             </Card>
@@ -57,16 +63,23 @@ export default function Charts({ data, cumulative }) {
                                 ]}
                                 cx="50%"
                                 cy="50%"
-                                innerRadius={60}
-                                outerRadius={100}
+                                innerRadius={80}
+                                outerRadius={110}
                                 paddingAngle={5}
                                 dataKey="value"
+                                stroke="none"
                             >
-                                <Cell fill="#34d399" stroke="rgba(0,0,0,0)" />
-                                <Cell fill="#f43f5e" stroke="rgba(0,0,0,0)" />
+                                <Cell fill="#34d399" />
+                                <Cell fill="#f43f5e" />
                             </Pie>
                             <Tooltip content={<CustomTooltip />} />
                             <Legend verticalAlign="bottom" height={36} iconType="circle" />
+                            <text x="50%" y="50%" textAnchor="middle" dominantBaseline="middle" className="fill-scholar-200 font-serif text-2xl font-bold">
+                                {Math.round((totals.local / (totals.local + totals.remote)) * 100) || 0}%
+                            </text>
+                            <text x="50%" y="58%" textAnchor="middle" dominantBaseline="middle" className="fill-scholar-400 font-mono text-xs tracking-widest uppercase">
+                                Locality
+                            </text>
                         </PieChart>
                     </ResponsiveContainer>
                 </div>
@@ -76,9 +89,15 @@ export default function Charts({ data, cumulative }) {
             <Card title="Cumulative Latency Trend" delay={4} className="col-span-1 lg:col-span-2 min-h-[350px]">
                 <ResponsiveContainer width="100%" height={300}>
                     <LineChart data={cumulative}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.5} />
-                        <XAxis dataKey="idx" stroke="#94a3b8" tick={{ fontSize: 12, fontFamily: 'monospace' }} label={{ value: 'Sample Index', position: 'insideBottom', offset: -5, fill: '#64748b' }} />
-                        <YAxis stroke="#94a3b8" tick={{ fontSize: 12, fontFamily: 'monospace' }} />
+                        <defs>
+                            <linearGradient id="lineSafe" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor="#818cf8" stopOpacity={0.3} />
+                                <stop offset="95%" stopColor="#818cf8" stopOpacity={0} />
+                            </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.3} vertical={false} />
+                        <XAxis dataKey="idx" stroke="#94a3b8" tick={{ fontSize: 12, fontFamily: 'monospace' }} axisLine={false} tickLine={false} label={{ value: 'Sample Index', position: 'insideBottom', offset: -5, fill: '#64748b' }} />
+                        <YAxis stroke="#94a3b8" tick={{ fontSize: 12, fontFamily: 'monospace' }} axisLine={false} tickLine={false} />
                         <Tooltip content={<CustomTooltip />} />
                         <Legend />
                         <Line
@@ -88,8 +107,8 @@ export default function Charts({ data, cumulative }) {
                             stroke="#818cf8"
                             strokeWidth={3}
                             dot={false}
-                            activeDot={{ r: 6, fill: "#fff" }}
-                            animationDuration={2000}
+                            activeDot={{ r: 6, fill: "#fff", stroke: "#818cf8", strokeWidth: 2 }}
+                            animationDuration={500}
                         />
                     </LineChart>
                 </ResponsiveContainer>

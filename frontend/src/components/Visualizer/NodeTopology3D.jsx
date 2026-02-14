@@ -25,11 +25,11 @@ function Node({ position, id, active, onClick }) {
             onPointerOut={() => document.body.style.cursor = 'default'}
         >
             <meshStandardMaterial
-                color={active ? "#0ea5e9" : "#334155"}
-                emissive={active ? "#0ea5e9" : "#000000"}
-                emissiveIntensity={active ? 2 : 0}
-                metalness={0.8}
-                roughness={0.2}
+                color={active ? "#00f0ff" : "#1e293b"}
+                emissive={active ? "#00f0ff" : "#0f172a"}
+                emissiveIntensity={active ? 3 : 0.5}
+                metalness={0.9}
+                roughness={0.1}
             />
             <Html distanceFactor={10}>
                 <div className="bg-slate-900/80 backdrop-blur px-2 py-1 rounded border border-scholar-500/30 text-xs font-mono text-scholar-200">
@@ -97,11 +97,12 @@ export default function NodeTopology3D({ nodes, activeNode = 0 }) {
                 System Topology Visualization
             </div>
             <Canvas camera={{ position: [0, 5, 8], fov: 45 }}>
-                <ambientLight intensity={0.5} />
-                <pointLight position={[10, 10, 10]} intensity={1} />
-                <spotLight position={[-10, 10, -10]} angle={0.3} />
+                <ambientLight intensity={1.5} />
+                <pointLight position={[10, 10, 10]} intensity={2} color="#00f0ff" />
+                <pointLight position={[-10, -10, -10]} intensity={1} color="#bf00ff" />
+                <spotLight position={[0, 10, 0]} angle={0.5} intensity={2} />
                 <TopologyScene nodes={nodes} activeNode={activeNode} />
-                <OrbitControls enableZoom={false} autoRotate autoRotateSpeed={0.5} />
+                <OrbitControls enableZoom={false} autoRotate={false} />
             </Canvas>
         </div>
     );

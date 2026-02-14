@@ -12,6 +12,9 @@ import Tooltip from "./components/ui/Tooltip";
 import NodeTopology3D from "./components/Visualizer/NodeTopology3D";
 import ParticleBackground from "./components/ui/ParticleBackground";
 import ReportGenerator from "./components/Reporting/ReportGenerator";
+import LatencyHeatmap from "./components/Visualizer/LatencyHeatmap";
+import ComparisonView from "./components/dashboard/ComparisonView";
+import Presets from "./components/dashboard/Presets";
 
 export default function App() {
   const [data, setData] = useState([]);
@@ -25,6 +28,7 @@ export default function App() {
   });
   const [live, setLive] = useState(false);
   const [error, setError] = useState("");
+  const [baseline, setBaseline] = useState(null);
 
   const API_BASE = (import.meta.env && import.meta.env.VITE_API_BASE_URL) || (window && window.API_BASE) || "http://localhost:5000";
   const esRef = useRef(null);
@@ -62,18 +66,30 @@ export default function App() {
     esRef.current = es;
     setLoading(true);
 
+    // Performance Optimization: Batch updates
+    let buffer = [];
+    const flushInterval = setInterval(() => {
+      if (buffer.length > 0) {
+        setData(prev => [...prev, ...buffer]);
+        buffer = [];
+      }
+    }, 100); // Update UI only 10 times per second
+
     es.addEventListener("result", (e) => {
       try {
         const row = JSON.parse(e.data);
-        setData((prev) => [...prev, row]);
+        buffer.push(row);
       } catch (e) { void e; }
     });
     es.addEventListener("end", () => {
+      clearInterval(flushInterval);
+      if (buffer.length > 0) setData(prev => [...prev, ...buffer]); // Flush remaining
       setLoading(false);
       es.close();
       esRef.current = null;
     });
     es.addEventListener("error", () => {
+      clearInterval(flushInterval);
       setLoading(false);
       setError("Stream connection error");
     });
@@ -114,42 +130,44 @@ export default function App() {
       <ParticleBackground />
 
       {/* Background Ambience */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
-        <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-scholar-900/10 rounded-full blur-[120px]" />
-        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-indigo-900/10 rounded-full blur-[120px]" />
+      <div className="fixed inset-0 pointer-events-none overflow-hidden z-0 bg-black">
+        <div className="absolute top-[-20%] left-[-20%] w-[70%] h-[70%] bg-scholar-900/20 rounded-full blur-[150px] animate-pulse" style={{ animationDuration: '8s' }} />
+        <div className="absolute bottom-[-20%] right-[-20%] w-[60%] h-[60%] bg-indigo-900/20 rounded-full blur-[150px] animate-pulse" style={{ animationDuration: '10s', animationDelay: '1s' }} />
+        <div className="absolute top-[40%] left-[30%] w-[40%] h-[40%] bg-cyan-900/10 rounded-full blur-[120px] animate-pulse" style={{ animationDuration: '12s', animationDelay: '2s' }} />
+        <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 brightness-100 contrast-150 mix-blend-overlay"></div>
       </div>
 
       <div className="max-w-[1600px] mx-auto p-4 md:p-8 relative z-10 space-y-6">
 
         {/* Header */}
-        <header className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 border-b border-white/5 pb-6 backdrop-blur-sm bg-slate-900/30 p-6 rounded-2xl border border-white/10 shadow-2xl">
-          <div className="space-y-2">
-            <div className="flex items-center gap-3">
-              <div className="p-3 bg-scholar-500/10 rounded-xl border border-scholar-500/20 shadow-[0_0_15px_rgba(14,165,233,0.3)]">
-                <FlaskConical className="w-8 h-8 text-scholar-400" />
-              </div>
-              <div>
-                <h1 className="text-4xl md:text-5xl font-serif font-bold tracking-tight text-white drop-shadow-md">
-                  NUMA <span className="text-scholar-400">Analyzer</span>
-                </h1>
-                <p className="text-scholar-400 font-serif italic text-lg opacity-80">
-                  Extreme Performance Research Platform
-                </p>
-              </div>
+        <header className="flex flex-col md:flex-row justify-between items-center gap-6 border-b border-white/5 pb-6 backdrop-blur-sm bg-slate-900/30 p-6 rounded-2xl border border-white/10 shadow-2xl relative overflow-hidden group">
+          <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/5 via-transparent to-indigo-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-1000" />
+
+          <div className="flex items-center gap-4 relative z-10 w-full md:w-auto">
+            <div className="p-3 bg-slate-950/50 rounded-xl border border-white/10 shadow-[0_0_20px_rgba(0,240,255,0.1)] group-hover:shadow-[0_0_30px_rgba(0,240,255,0.2)] transition-shadow">
+              <FlaskConical className="w-8 h-8 text-cyan-400" />
+            </div>
+            <div>
+              <h1 className="text-3xl md:text-4xl font-serif font-bold tracking-tight text-white drop-shadow-lg leading-tight">
+                NUMA <span className="text-cyan-400">Analyzer</span>
+              </h1>
+              <p className="text-slate-400 font-mono text-xs uppercase tracking-[0.2em] mt-1">
+                Extreme Research Platform
+              </p>
             </div>
           </div>
 
-          <div className="flex gap-3">
-            <Button variant="outline" onClick={() => window.open('https://github.com', '_blank')}>
-              <Github className="w-4 h-4" /> Repo
+          <div className="flex items-center gap-3 relative z-10 w-full md:w-auto justify-end">
+            <Button variant="outline" onClick={() => window.open('https://github.com', '_blank')} className="h-10 text-xs">
+              <Github className="w-3.5 h-3.5" /> Repo
             </Button>
-            <Button variant="outline" onClick={() => window.open('https://en.wikipedia.org/wiki/Non-uniform_memory_access', '_blank')}>
-              <BookOpen className="w-4 h-4" /> Docs
+            <Button variant="outline" onClick={() => window.open('https://en.wikipedia.org/wiki/Non-uniform_memory_access', '_blank')} className="h-10 text-xs">
+              <BookOpen className="w-3.5 h-3.5" /> Docs
             </Button>
-            <div className="flex items-center gap-2 px-4 py-2 bg-slate-900/80 rounded-lg border border-scholar-500/30 shadow-inner">
-              <Activity className={`w-4 h-4 ${live || loading ? "text-green-400 animate-pulse" : "text-slate-500"}`} />
-              <span className="text-sm font-mono text-slate-300">
-                {loading ? "PROCESSING..." : "SYSTEM READY"}
+            <div className={`flex items-center gap-2 px-4 h-10 rounded-lg border backdrop-blur-md transition-all ${live ? 'bg-green-500/10 border-green-500/30 text-green-400 shadow-[0_0_15px_rgba(34,197,94,0.2)]' : 'bg-slate-900/50 border-white/10 text-slate-400'}`}>
+              <Activity className={`w-3.5 h-3.5 ${live || loading ? "animate-pulse" : ""}`} />
+              <span className="text-xs font-mono font-bold tracking-wider">
+                {loading ? "PROCESSING" : "READY"}
               </span>
             </div>
           </div>
@@ -160,6 +178,8 @@ export default function App() {
 
           {/* Left Column: Controls & 3D Visualization */}
           <div className="xl:col-span-3 space-y-6 flex flex-col">
+            <Presets onApply={(cfg) => setConfig(prev => ({ ...prev, ...cfg }))} />
+
             <ControlPanel
               config={config}
               setConfig={setConfig}
@@ -218,6 +238,16 @@ export default function App() {
                     time={totals.time}
                   />
 
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 min-h-[400px]">
+                    <LatencyHeatmap nodes={config.nodes} />
+                    <ComparisonView
+                      currentData={totals}
+                      currentConfig={config}
+                      baselineData={baseline}
+                      onSaveBaseline={(data, cfg) => setBaseline({ ...data, config: cfg })}
+                    />
+                  </div>
+
                   <Charts data={data} cumulative={cumulative} />
 
                   {/* Detailed Data Table */}
@@ -275,10 +305,10 @@ export default function App() {
                   exit={{ opacity: 0 }}
                   className="h-[600px] flex flex-col items-center justify-center text-slate-500 space-y-6 border border-slate-800/50 bg-slate-900/20 rounded-xl backdrop-blur-sm"
                 >
-                  <div className="relative">
-                    <div className="absolute inset-0 bg-scholar-500/20 blur-3xl rounded-full animate-pulse" />
-                    <div className="p-6 bg-slate-900 rounded-full border border-scholar-500/30 relative z-10 shadow-2xl">
-                      <Activity className="w-12 h-12 text-scholar-400" />
+                  <div className="relative group">
+                    <div className="absolute inset-0 bg-cyan-500/20 blur-[60px] rounded-full animate-pulse" />
+                    <div className="p-8 bg-slate-950 rounded-full border border-cyan-500/30 relative z-10 shadow-[0_0_30px_rgba(6,182,212,0.2)] group-hover:scale-110 transition-transform duration-500">
+                      <Activity className="w-16 h-16 text-cyan-400 drop-shadow-[0_0_10px_rgba(34,211,238,0.8)]" />
                     </div>
                   </div>
                   <div className="text-center space-y-2">

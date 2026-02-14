@@ -8,7 +8,7 @@ export default function Card({ children, className, title, delay = 0 }) {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: delay * 0.1, ease: "easeOut" }}
             className={clsx(
-                "bg-slate-900/60 backdrop-blur-md border border-slate-700/50 rounded-xl p-6 shadow-xl",
+                "glass-panel rounded-2xl p-6 relative overflow-hidden group",
                 className
             )}
         >
@@ -18,6 +18,6 @@ export default function Card({ children, className, title, delay = 0 }) {
                 </h3>
             )}
             {children}
-        </motion.div>
+        </ motion.div>
     );
 }

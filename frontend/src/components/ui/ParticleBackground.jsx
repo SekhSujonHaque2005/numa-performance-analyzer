@@ -45,8 +45,8 @@ function Particles({ count = 100 }) {
 export default function ParticleBackground() {
     return (
         <div className="fixed inset-0 z-0 pointer-events-none opacity-30">
-            <Canvas camera={{ position: [0, 0, 5], fov: 75 }}>
-                <Particles count={300} />
+            <Canvas camera={{ position: [0, 0, 5], fov: 75 }} dpr={[1, 1.5]}>
+                <Particles count={80} />
             </Canvas>
         </div>
     );

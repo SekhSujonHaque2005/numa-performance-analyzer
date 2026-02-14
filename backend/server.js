@@ -139,7 +139,7 @@ app.get("/simulate/stream", (req, res) => {
     if (i < data.length) {
       sendEvent("result", data[i]);
       i++;
-      setTimeout(tick, 50);
+      setTimeout(tick, 2);
     } else {
       sendEvent("end", { code: 0 });
       res.end();
