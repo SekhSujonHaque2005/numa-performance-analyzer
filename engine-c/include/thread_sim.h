@@ -3,6 +3,6 @@
 
 #include "metrics.h"
 
-void simulate_parallel(NUMASystem *sys, int threads, int blocks);
+void simulate_parallel(NUMASystem *sys, int threads, int blocks, int policy, int pinning);
 
 #endif

@@ -24,13 +24,13 @@ export function runSimulation() {
         const lines = data.trim().split(/\r?\n/);
         const headers = lines[0].split(",");
 
-        const result = lines.slice(1).map(line => {
-        const values = line.split(",");
-        let obj = {};
+      const result = lines.slice(1).map(line => {
+      const values = line.split(",");
+      let obj = {};
 
-        headers.forEach((h, i) => {
-        obj[h.trim()] = values[i].trim();
-    });
+    headers.forEach((h, i) => {
+    obj[h.trim()] = values[i].trim();
+  });
 
   return obj;
 });

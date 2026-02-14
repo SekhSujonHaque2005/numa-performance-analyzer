@@ -13,6 +13,7 @@ typedef struct {
     NUMASystem *sys;
     int node_id;
     int blocks;
+    int policy;
 } ThreadData;
 
 void* thread_worker(void *arg)
@@ -21,8 +22,12 @@ void* thread_worker(void *arg)
 
     Allocation alloc;
     Metrics m;
-
-    allocate_random(data->sys, &alloc, data->blocks);
+    if(data->policy == 1)
+        allocate_first_touch(data->sys, &alloc, data->node_id, data->blocks);
+    else if(data->policy == 2)
+        allocate_interleaved(data->sys, &alloc, data->blocks);
+    else
+        allocate_random(data->sys, &alloc, data->blocks);
 
 
     simulate_access(data->sys, &alloc, data->node_id, &m);
@@ -38,7 +43,7 @@ void* thread_worker(void *arg)
 
     return NULL;
 }
-void simulate_parallel(NUMASystem *sys, int threads, int blocks)
+void simulate_parallel(NUMASystem *sys, int threads, int blocks, int policy, int pinning)
 {
     pthread_t tid[threads];
     ThreadData tdata[threads];
@@ -47,8 +52,12 @@ void simulate_parallel(NUMASystem *sys, int threads, int blocks)
     for(int i = 0; i < threads; i++)
     {
         tdata[i].sys = sys;
-        tdata[i].node_id = i;
+        if(pinning)
+            tdata[i].node_id = i % sys->num_nodes;
+        else
+            tdata[i].node_id = rand() % sys->num_nodes;
         tdata[i].blocks = blocks;
+        tdata[i].policy = policy;
 
         pthread_create(&tid[i], NULL, thread_worker, &tdata[i]);
     }
