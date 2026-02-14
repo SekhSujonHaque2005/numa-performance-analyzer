@@ -8,7 +8,7 @@ all:
 	$(CC) $(SRC) $(CFLAGS) -o $(OUT)
 
 run: all
-	./$(OUT)
+	./$(OUT) $(ARGS)
 
 clean:
 	rm -f build/*

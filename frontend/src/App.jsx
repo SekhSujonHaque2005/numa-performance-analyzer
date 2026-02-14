@@ -1,70 +1,52 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import axios from "axios";
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-  LineChart,
-  Line,
-  CartesianGrid,
-  Legend,
-} from "recharts";
+import { motion, AnimatePresence } from "framer-motion";
+import { Info, Download, Activity, FlaskConical, Github, BookOpen } from "lucide-react";
+
+import ControlPanel from "./components/dashboard/ControlPanel";
+import Metrics from "./components/dashboard/Metrics";
+import Charts from "./components/dashboard/Charts";
+import Button from "./components/ui/Button";
+import Card from "./components/ui/Card";
+import Tooltip from "./components/ui/Tooltip";
+import NodeTopology3D from "./components/Visualizer/NodeTopology3D";
+import ParticleBackground from "./components/ui/ParticleBackground";
+import ReportGenerator from "./components/Reporting/ReportGenerator";
 
 export default function App() {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [nodes, setNodes] = useState(4);
-  const [threads, setThreads] = useState(4);
-  const [blocks, setBlocks] = useState(20);
-  const [policy, setPolicy] = useState("random");
-  const [pinning, setPinning] = useState(true);
+  const [config, setConfig] = useState({
+    nodes: 4,
+    threads: 4,
+    blocks: 20,
+    policy: "random",
+    pinning: true
+  });
   const [live, setLive] = useState(false);
-
-  const [nodesB, setNodesB] = useState(4);
-  const [threadsB, setThreadsB] = useState(4);
-  const [blocksB, setBlocksB] = useState(20);
-  const [policyB, setPolicyB] = useState("first_touch");
-  const [pinningB, setPinningB] = useState(true);
-  const [compare, setCompare] = useState(null);
+  const [error, setError] = useState("");
 
   const API_BASE = (import.meta.env && import.meta.env.VITE_API_BASE_URL) || (window && window.API_BASE) || "http://localhost:5000";
   const esRef = useRef(null);
-  const [error, setError] = useState("");
-  const [history, setHistory] = useState([]);
 
   /* ---------------- RUN SIMULATION ---------------- */
   const runSimulation = async () => {
     try {
       setLoading(true);
-
       setError("");
+      setData([]);
+
       if (live) {
         runSimulationStream();
         return;
       }
 
-      const res = await axios.post(`${API_BASE}/simulate`, {
-        nodes,
-        threads,
-        blocks,
-        policy,
-        pinning,
-      });
-
+      const res = await axios.post(`${API_BASE}/simulate`, config);
       setData(res.data);
-      const sum = (arr, k) => arr.reduce((s, d) => s + Number(d[k]), 0);
-      const summary = { ts: Date.now(), cfg: { nodes, threads, blocks, policy, pinning }, totals: { local: sum(res.data, "local"), remote: sum(res.data, "remote"), time: sum(res.data, "time") } };
-      setHistory((h) => [summary, ...h].slice(0, 5));
     } catch (err) {
       setError(String(err?.message || err));
     } finally {
-      setLoading(false);
+      if (!live) setLoading(false);
     }
   };
 
@@ -73,13 +55,8 @@ export default function App() {
       esRef.current.close();
       esRef.current = null;
     }
-    setData([]);
     const url = new URL(`${API_BASE}/simulate/stream`);
-    url.searchParams.set("nodes", String(nodes));
-    url.searchParams.set("threads", String(threads));
-    url.searchParams.set("blocks", String(blocks));
-    url.searchParams.set("policy", policy);
-    url.searchParams.set("pinning", String(pinning));
+    Object.keys(config).forEach(key => url.searchParams.set(key, String(config[key])));
 
     const es = new EventSource(url.toString());
     esRef.current = es;
@@ -95,8 +72,6 @@ export default function App() {
       setLoading(false);
       es.close();
       esRef.current = null;
-      const sum = (arr, k) => arr.reduce((s, d) => s + Number(d[k]), 0);
-      setHistory((h) => [{ ts: Date.now(), cfg: { nodes, threads, blocks, policy, pinning }, totals: { local: sum(data, "local"), remote: sum(data, "remote"), time: sum(data, "time") } }, ...h].slice(0, 5));
     });
     es.addEventListener("error", () => {
       setLoading(false);
@@ -108,363 +83,224 @@ export default function App() {
     if (esRef.current) esRef.current.close();
   }, []);
 
-  const compareScenarios = async () => {
-    try {
-      setLoading(true);
-      const [a, b] = await Promise.all([
-        axios.post(`${API_BASE}/simulate`, { nodes, threads, blocks, policy, pinning }),
-        axios.post(`${API_BASE}/simulate`, { nodes: nodesB, threads: threadsB, blocks: blocksB, policy: policyB, pinning: pinningB }),
-      ]);
+  /* ---------------- CALCULATIONS ---------------- */
+  const cumulative = useMemo(() =>
+    data.map((d, i) => ({
+      idx: i,
+      time: Number(d.time),
+      ctime: data.slice(0, i + 1).reduce((s, x) => s + Number(x.time), 0)
+    })),
+    [data]
+  );
 
-      const sum = (arr, key) => arr.reduce((s, d) => s + Number(d[key]), 0);
-      const A = { local: sum(a.data, "local"), remote: sum(a.data, "remote"), time: sum(a.data, "time") };
-      const B = { local: sum(b.data, "local"), remote: sum(b.data, "remote"), time: sum(b.data, "time") };
-      const pct = (x, y) => (x === 0 ? 0 : ((y - x) / x) * 100);
-      setCompare({ A, B, diff: { local: pct(A.local, B.local), remote: pct(A.remote, B.remote), time: pct(A.time, B.time) } });
-      setData(a.data);
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const totals = useMemo(() => ({
+    local: data.reduce((s, d) => s + Number(d.local), 0),
+    remote: data.reduce((s, d) => s + Number(d.remote), 0),
+    time: data.reduce((s, d) => s + Number(d.time), 0)
+  }), [data]);
 
-  /* ---------------- EXPORT JSON ---------------- */
+  /* ---------------- EXPORTS ---------------- */
   const downloadJSON = () => {
-    const blob = new Blob([JSON.stringify(data, null, 2)], {
-      type: "application/json",
-    });
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
     a.download = "results.json";
     a.click();
   };
 
-  /* ---------------- EXPORT CSV ---------------- */
-  const downloadCSV = () => {
-    const csv =
-      "thread,local,remote,time\n" +
-      data
-        .map((d) => `${d.thread},${d.local},${d.remote},${d.time}`)
-        .join("\n");
-
-    const blob = new Blob([csv], { type: "text/csv" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = "results.csv";
-    a.click();
-  };
-
-  /* ---------------- STATS ---------------- */
-
-  const latencyMatrix = [
-    [10, 45, 60, 75],
-    [45, 10, 45, 60],
-    [60, 45, 10, 45],
-    [75, 60, 45, 10],
-  ];
-
-  const max = Math.max(...latencyMatrix.flat());
-
-  /* ===================================================== */
-  const cumulative = useMemo(() => data.map((d, i) => ({ idx: i, time: Number(d.time), ctime: data.slice(0, i + 1).reduce((s, x) => s + Number(x.time), 0) })), [data]);
-  const totals = useMemo(() => ({ local: data.reduce((s, d) => s + Number(d.local), 0), remote: data.reduce((s, d) => s + Number(d.remote), 0), time: data.reduce((s, d) => s + Number(d.time), 0) }), [data]);
-  const totalLocal = totals.local;
-  const totalRemote = totals.remote;
-
   return (
-    <div className="min-h-screen bg-black text-white p-10 space-y-10">
-      <div className="max-w-6xl mx-auto space-y-8">
-      <header className="flex items-center justify-between">
-        <div>
-          <h1 className="text-5xl font-bold">NUMA Performance Analyzer</h1>
-          <p className="text-gray-300 mt-2">Explore NUMA locality effects using configurable scenarios, live results, and side-by-side comparisons.</p>
-        </div>
+    <div className="min-h-screen bg-slate-950 text-slate-100 font-sans selection:bg-scholar-500/30 overflow-x-hidden">
 
-        <div className="flex gap-3 items-center">
-          <input
-            type="number"
-            min="1"
-            value={nodes}
-            onChange={(e) => setNodes(Number(e.target.value))}
-            className="bg-slate-700 px-3 py-2 rounded w-20"
-            aria-label="nodes"
-          />
-          <input
-            type="number"
-            min="1"
-            value={threads}
-            onChange={(e) => setThreads(Number(e.target.value))}
-            className="bg-slate-700 px-3 py-2 rounded w-24"
-            aria-label="threads"
-          />
-          <input
-            type="number"
-            min="1"
-            value={blocks}
-            onChange={(e) => setBlocks(Number(e.target.value))}
-            className="bg-slate-700 px-3 py-2 rounded w-24"
-            aria-label="blocks"
-          />
-          <select
-            value={policy}
-            onChange={(e) => setPolicy(e.target.value)}
-            className="bg-slate-700 px-3 py-2 rounded"
-            aria-label="policy"
-          >
-            <option value="random">Random</option>
-            <option value="first_touch">First Touch</option>
-            <option value="interleaved">Interleaved</option>
-          </select>
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={pinning}
-              onChange={(e) => setPinning(e.target.checked)}
+      <ParticleBackground />
+
+      {/* Background Ambience */}
+      <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
+        <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-scholar-900/10 rounded-full blur-[120px]" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-indigo-900/10 rounded-full blur-[120px]" />
+      </div>
+
+      <div className="max-w-[1600px] mx-auto p-4 md:p-8 relative z-10 space-y-6">
+
+        {/* Header */}
+        <header className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 border-b border-white/5 pb-6 backdrop-blur-sm bg-slate-900/30 p-6 rounded-2xl border border-white/10 shadow-2xl">
+          <div className="space-y-2">
+            <div className="flex items-center gap-3">
+              <div className="p-3 bg-scholar-500/10 rounded-xl border border-scholar-500/20 shadow-[0_0_15px_rgba(14,165,233,0.3)]">
+                <FlaskConical className="w-8 h-8 text-scholar-400" />
+              </div>
+              <div>
+                <h1 className="text-4xl md:text-5xl font-serif font-bold tracking-tight text-white drop-shadow-md">
+                  NUMA <span className="text-scholar-400">Analyzer</span>
+                </h1>
+                <p className="text-scholar-400 font-serif italic text-lg opacity-80">
+                  Extreme Performance Research Platform
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex gap-3">
+            <Button variant="outline" onClick={() => window.open('https://github.com', '_blank')}>
+              <Github className="w-4 h-4" /> Repo
+            </Button>
+            <Button variant="outline" onClick={() => window.open('https://en.wikipedia.org/wiki/Non-uniform_memory_access', '_blank')}>
+              <BookOpen className="w-4 h-4" /> Docs
+            </Button>
+            <div className="flex items-center gap-2 px-4 py-2 bg-slate-900/80 rounded-lg border border-scholar-500/30 shadow-inner">
+              <Activity className={`w-4 h-4 ${live || loading ? "text-green-400 animate-pulse" : "text-slate-500"}`} />
+              <span className="text-sm font-mono text-slate-300">
+                {loading ? "PROCESSING..." : "SYSTEM READY"}
+              </span>
+            </div>
+          </div>
+        </header>
+
+        {/* Main Grid */}
+        <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
+
+          {/* Left Column: Controls & 3D Visualization */}
+          <div className="xl:col-span-3 space-y-6 flex flex-col">
+            <ControlPanel
+              config={config}
+              setConfig={setConfig}
+              onRun={runSimulation}
+              loading={loading}
+              live={live}
+              setLive={setLive}
             />
-            Pin Threads
-          </label>
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={live}
-              onChange={(e) => setLive(e.target.checked)}
-            />
-            Live Updates
-          </label>
-          <button
-            onClick={runSimulation}
-            disabled={loading}
-            className={`px-6 py-3 rounded-lg ${loading?"bg-blue-800 cursor-not-allowed":"bg-blue-600 hover:bg-blue-700"}`}
-          >
-            {loading ? "Running..." : "Run Simulation"}
-          </button>
 
-          <button
-            onClick={downloadJSON}
-            className="bg-green-600 px-4 py-2 rounded"
-          >
-            JSON
-          </button>
+            <Card title="Topology Visualizer" className="flex-1 min-h-[300px] p-0 overflow-hidden relative group">
+              <div className="absolute inset-0 bg-gradient-to-b from-transparent to-slate-900/90 pointer-events-none z-10" />
+              <NodeTopology3D nodes={config.nodes} activeNode={loading ? Math.floor(Math.random() * config.nodes) : -1} />
+              <div className="absolute bottom-4 left-4 z-20">
+                <div className="flex items-center gap-2 text-xs text-scholar-300 font-mono">
+                  <span className="w-2 h-2 rounded-full bg-scholar-500 animate-pulse" />
+                  Active Node
+                </div>
+              </div>
+            </Card>
 
-          <button
-            onClick={downloadCSV}
-            className="bg-purple-600 px-4 py-2 rounded"
-          >
-            CSV
-          </button>
-        </div>
-      </header>
-
-      <section className="bg-neutral-900/80 p-6 rounded-xl">
-        <h2 className="text-xl font-semibold mb-2">Overview</h2>
-        <p className="text-gray-300">This page models local and remote memory accesses across NUMA nodes. Use the controls to set the topology and allocation policy. Toggle pinning to simulate thread affinity. Run single scenarios or compare two configurations to quantify changes in locality and latency.</p>
-      </section>
-
-      {error && (
-        <div className="bg-red-600/30 border border-red-600 text-red-200 px-4 py-3 rounded">{error}</div>
-      )}
-
-      {/* ---------------- STATS ---------------- */}
-      <section className="grid grid-cols-3 gap-4">
-        <div className="bg-neutral-900 p-6 rounded-xl">
-          <div className="text-sm text-gray-400">Local Access</div>
-          <div className="text-3xl font-bold text-green-400">{totals.local}</div>
-        </div>
-        <div className="bg-neutral-900 p-6 rounded-xl">
-          <div className="text-sm text-gray-400">Remote Access</div>
-          <div className="text-3xl font-bold text-rose-400">{totals.remote}</div>
-        </div>
-        <div className="bg-neutral-900 p-6 rounded-xl">
-          <div className="text-sm text-gray-400">Total Time (ns)</div>
-          <div className="text-3xl font-bold text-cyan-400">{totals.time}</div>
-        </div>
-      </section>
-
-      {/* ---------------- CHARTS ---------------- */}
-      {data.length > 0 && (
-        <section className="grid grid-cols-3 gap-8">
-          {/* Bar Chart */}
-          <div className="bg-neutral-900 p-6 rounded-xl">
-            <h2 className="mb-4 font-semibold">Latency Per Thread</h2>
-
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={data}>
-                <XAxis dataKey="thread" stroke="#fff" />
-                <YAxis stroke="#fff" />
-                <Tooltip />
-                <Bar dataKey="time" fill="#3b82f6" />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-
-          {/* Pie Chart */}
-          <div className="bg-neutral-900 p-6 rounded-xl">
-            <h2 className="mb-4 font-semibold">Access Distribution</h2>
-
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
-                <Pie
-                  data={[
-                    { name: "Local", value: totalLocal },
-                    { name: "Remote", value: totalRemote },
-                  ]}
-                  dataKey="value"
-                  outerRadius={100}
-                >
-                  <Cell fill="#22c55e" />
-                  <Cell fill="#ef4444" />
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-
-          {/* Line Chart */}
-          <div className="bg-neutral-900 p-6 rounded-xl">
-            <h2 className="mb-4 font-semibold">Cumulative Time</h2>
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={cumulative}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                <XAxis dataKey="idx" stroke="#fff" />
-                <YAxis stroke="#fff" />
-                <Tooltip />
-                <Legend />
-                <Line type="monotone" dataKey="ctime" stroke="#38bdf8" strokeWidth={2} dot={false} />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        </section>
-      )}
-
-      <section className="bg-neutral-900 p-6 rounded-xl">
-        <h2 className="mb-4 font-semibold">Scenario Compare</h2>
-        <div className="flex gap-3 items-center flex-wrap">
-          <input type="number" min="1" value={nodesB} onChange={(e)=>setNodesB(Number(e.target.value))} className="bg-slate-700 px-3 py-2 rounded w-20" aria-label="nodesB" />
-          <input type="number" min="1" value={threadsB} onChange={(e)=>setThreadsB(Number(e.target.value))} className="bg-slate-700 px-3 py-2 rounded w-24" aria-label="threadsB" />
-          <input type="number" min="1" value={blocksB} onChange={(e)=>setBlocksB(Number(e.target.value))} className="bg-slate-700 px-3 py-2 rounded w-24" aria-label="blocksB" />
-          <select value={policyB} onChange={(e)=>setPolicyB(e.target.value)} className="bg-slate-700 px-3 py-2 rounded" aria-label="policyB">
-            <option value="random">Random</option>
-            <option value="first_touch">First Touch</option>
-            <option value="interleaved">Interleaved</option>
-          </select>
-          <label className="flex items-center gap-2">
-            <input type="checkbox" checked={pinningB} onChange={(e)=>setPinningB(e.target.checked)} />
-            Pin Threads
-          </label>
-          <button onClick={compareScenarios} className="bg-indigo-600 hover:bg-indigo-700 px-6 py-3 rounded-lg">{loading?"Comparing...":"Compare"}</button>
-        </div>
-        {compare && (
-          <div className="mt-4 grid grid-cols-3 gap-4 text-sm">
-            <div className="bg-neutral-800 p-4 rounded">
-              <div className="font-semibold mb-2">Remote Access</div>
-              <div>A: {compare.A.remote}</div>
-              <div>B: {compare.B.remote}</div>
-              <div className={compare.diff.remote <= 0 ? "text-green-400" : "text-red-400"}>{compare.diff.remote.toFixed(1)}%</div>
-            </div>
-            <div className="bg-neutral-800 p-4 rounded">
-              <div className="font-semibold mb-2">Local Access</div>
-              <div>A: {compare.A.local}</div>
-              <div>B: {compare.B.local}</div>
-              <div>{compare.diff.local.toFixed(1)}%</div>
-            </div>
-            <div className="bg-neutral-800 p-4 rounded">
-              <div className="font-semibold mb-2">Total Time (ns)</div>
-              <div>A: {compare.A.time}</div>
-              <div>B: {compare.B.time}</div>
-              <div className={compare.diff.time <= 0 ? "text-green-400" : "text-red-400"}>{compare.diff.time.toFixed(1)}%</div>
+            <div className="grid grid-cols-2 gap-3">
+              <ReportGenerator data={data} config={config} />
+              <Button variant="outline" onClick={downloadJSON} disabled={data.length === 0} className="w-full">
+                <Download className="w-4 h-4" /> JSON
+              </Button>
             </div>
           </div>
-        )}
-        <p className="text-gray-400 mt-4">Negative percentage in Remote Access or Total Time indicates an improvement in locality and latency for the second scenario.</p>
-      </section>
 
-      {/* ---------------- HEATMAP ---------------- */}
-      <section className="bg-neutral-900 p-6 rounded-xl">
-        <h2 className="mb-4 font-semibold">NUMA Latency Heatmap</h2>
+          {/* Right Column: Results & Analytics */}
+          <div className="xl:col-span-9 space-y-6" id="dashboard-content">
 
-        <div className="grid grid-cols-4 gap-2">
-          {latencyMatrix.flat().map((val, i) => {
-            const intensity = val / max;
-
-            return (
-              <div
-                key={i}
-                className="p-4 text-center rounded font-bold"
-                style={{
-                  backgroundColor: `rgba(239,68,68,${intensity})`,
-                }}
+            {error && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-red-500/10 border border-red-500/20 text-red-200 p-4 rounded-lg flex items-center gap-3 backdrop-blur-md"
               >
-                {val}
-              </div>
-            );
-          })}
-        </div>
-        <p className="text-gray-400 mt-4">The heatmap illustrates static node-to-node latency used by the simulator. Diagonal cells represent local memory access (lowest latency).</p>
-      </section>
+                <Info className="w-5 h-5 shrink-0" />
+                {error}
+              </motion.div>
+            )}
 
-      {/* ---------------- TABLE ---------------- */}
-      {data.length > 0 && (
-        <section className="bg-neutral-900 p-6 rounded-xl overflow-x-auto">
-          <h2 className="mb-4 font-semibold">Thread Table</h2>
+            <AnimatePresence mode="wait">
+              {data.length > 0 ? (
+                <motion.div
+                  key="results"
+                  initial={{ opacity: 0, scale: 0.98 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.98 }}
+                  transition={{ duration: 0.4, ease: "easeOut" }}
+                  className="space-y-6"
+                >
+                  <Metrics
+                    locals={totals.local}
+                    remotes={totals.remote}
+                    time={totals.time}
+                  />
 
-          <table className="w-full text-left">
-            <thead>
-              <tr className="text-gray-400 border-b border-slate-700">
-                <th className="py-2">Thread</th>
-                <th>Local</th>
-                <th>Remote</th>
-                <th>Time (ns)</th>
-              </tr>
-            </thead>
+                  <Charts data={data} cumulative={cumulative} />
 
-            <tbody>
-              {data.map((t, i) => (
-                <tr key={i} className="border-t border-slate-700">
-                  <td className="py-2">{t.thread}</td>
-                  <td>{t.local}</td>
-                  <td>{t.remote}</td>
-                  <td>{t.time}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <p className="text-gray-400 mt-4">Values are per-thread totals for the chosen number of blocks. Use the export buttons to download results for offline analysis.</p>
-        </section>
-      )}
+                  {/* Detailed Data Table */}
+                  <Card title="Thread-Level Analysis" delay={5} className="overflow-hidden">
+                    <div className="overflow-x-auto max-h-[400px] scrollbar-thin scrollbar-thumb-scholar-700 scrollbar-track-slate-900">
+                      <table className="w-full text-left border-collapse">
+                        <thead className="sticky top-0 bg-slate-900/95 backdrop-blur z-10">
+                          <tr className="border-b border-scholar-500/30 text-scholar-300 font-serif text-sm uppercase tracking-wider">
+                            <th className="py-4 pl-4">Thread ID</th>
+                            <th className="py-4">Local Access</th>
+                            <th className="py-4">Remote Access</th>
+                            <th className="py-4">Latency (ns)</th>
+                            <th className="py-4 pr-4">Locality Score</th>
+                          </tr>
+                        </thead>
+                        <tbody className="font-mono text-sm text-slate-300">
+                          {data.map((row, i) => (
+                            <motion.tr
+                              key={i}
+                              initial={{ opacity: 0, x: -10 }}
+                              animate={{ opacity: 1, x: 0 }}
+                              transition={{ delay: i * 0.03 }}
+                              className="border-b border-slate-800/50 hover:bg-scholar-900/20 transition-colors group"
+                            >
+                              <td className="py-3 pl-4 text-scholar-400 group-hover:text-white transition-colors">#{row.thread}</td>
+                              <td className="py-3">{row.local.toLocaleString()}</td>
+                              <td className="py-3">{row.remote.toLocaleString()}</td>
+                              <td className="py-3 text-cyan-300">{row.time.toLocaleString()}</td>
+                              <td className="py-3 pr-4">
+                                <div className="flex items-center gap-3">
+                                  <div className="w-full bg-slate-800 rounded-full h-2 overflow-hidden shadow-inner">
+                                    <div
+                                      className={`h-full transition-all duration-1000 ${row.local > row.remote ? "bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]" : "bg-rose-500 shadow-[0_0_10px_rgba(244,63,94,0.5)]"}`}
+                                      style={{ width: `${(row.local / (row.local + row.remote)) * 100}%` }}
+                                    />
+                                  </div>
+                                  <span className="text-xs w-8 text-right">
+                                    {((row.local / (row.local + row.remote)) * 100).toFixed(0)}%
+                                  </span>
+                                </div>
+                              </td>
+                            </motion.tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </Card>
 
-      {history.length > 0 && (
-        <section className="bg-neutral-900 p-6 rounded-xl">
-          <h2 className="mb-4 font-semibold">Recent Runs</h2>
-          <div className="space-y-3 text-sm">
-            {history.map((h, i) => (
-              <div key={i} className="flex items-center justify-between bg-neutral-800 p-3 rounded">
-                <div>
-                  <div className="font-semibold">{new Date(h.ts).toLocaleTimeString()}</div>
-                  <div className="text-gray-400">nodes {h.cfg.nodes}, threads {h.cfg.threads}, blocks {h.cfg.blocks}, {h.cfg.policy}, pin {String(h.cfg.pinning)}</div>
-                </div>
-                <div className="flex gap-4">
-                  <span className="text-green-300">L {h.totals.local}</span>
-                  <span className="text-rose-300">R {h.totals.remote}</span>
-                  <span className="text-cyan-300">T {h.totals.time}</span>
-                </div>
-              </div>
-            ))}
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="empty"
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="h-[600px] flex flex-col items-center justify-center text-slate-500 space-y-6 border border-slate-800/50 bg-slate-900/20 rounded-xl backdrop-blur-sm"
+                >
+                  <div className="relative">
+                    <div className="absolute inset-0 bg-scholar-500/20 blur-3xl rounded-full animate-pulse" />
+                    <div className="p-6 bg-slate-900 rounded-full border border-scholar-500/30 relative z-10 shadow-2xl">
+                      <Activity className="w-12 h-12 text-scholar-400" />
+                    </div>
+                  </div>
+                  <div className="text-center space-y-2">
+                    <h3 className="font-serif text-2xl text-slate-200">System Standby</h3>
+                    <p className="font-mono text-sm text-slate-400 max-w-md">
+                      Configure parameters in the Control Panel and initialize the simulation engine to visualize thread locality data.
+                    </p>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
           </div>
-        </section>
-      )}
+        </div>
 
-      <section className="bg-neutral-900 p-6 rounded-xl">
-        <h2 className="text-xl font-semibold mb-2">Interpretation Guide</h2>
-        <ul className="list-disc pl-6 text-gray-300 space-y-2">
-          <li>Local access means the thread reads from its home node; keep this high.</li>
-          <li>Remote access indicates cross-node traffic; reduce this to lower latency.</li>
-          <li>Pin Threads emulates CPU affinity; with first-touch, it maximizes locality.</li>
-          <li>Interleaved spreads blocks across nodes; latency reflects distribution.</li>
-        </ul>
-      </section>
+        <footer className="border-t border-white/5 pt-8 text-center md:flex justify-between items-center text-slate-500 text-sm pb-4">
+          <p className="font-serif">© 2026 NUMA Research Group. Advanced Systems Laboratory.</p>
+          <p className="font-mono text-xs opacity-50 hover:opacity-100 transition-opacity cursor-default">
+            v3.0.0-EXTREME • Three.js • React • C Engine
+          </p>
+        </footer>
 
-      <footer className="text-gray-500 text-sm text-center py-8">NUMA Performance Analyzer • Dark theme • Times New Roman</footer>
       </div>
     </div>
   );

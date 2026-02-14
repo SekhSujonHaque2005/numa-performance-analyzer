@@ -1,4 +1,5 @@
 import express from "express";
+import { exec } from "child_process";
 import cors from "cors";
 import fs from "fs";
 import path from "path";
@@ -60,10 +61,59 @@ app.post("/simulate", (req, res) => {
   const nodes = Number(req.body?.nodes ?? 4);
   const threads = Number(req.body?.threads ?? 4);
   const blocks = Number(req.body?.blocks ?? 20);
-  const policy = String(req.body?.policy ?? "random");
-  const pinning = Boolean(req.body?.pinning ?? true);
-  const data = simulateAll({ nodes, threads, blocks, policy, pinning });
-  res.json(data);
+  const policyStr = String(req.body?.policy ?? "random");
+  const pinning = Boolean(req.body?.pinning ?? true) ? 1 : 0;
+
+  let policy = 0;
+  if (policyStr === "first_touch") policy = 1;
+  else if (policyStr === "interleaved") policy = 2;
+
+  // Use /usr/bin/bash with MSYSTEM=MINGW64 to enforce MINGW64 environment
+  // This is necessary because mingw64/bin/bash.exe does not exist in standard MSYS2
+  const bashPath = "C:/msys64/usr/bin/bash.exe";
+  // The command to run
+  // We pass arguments via ARGS variable to make run
+  // We explicitly change directory because bash --login might reset cwd
+  const enginePathMsys = enginePath.replace(/\\/g, '/').replace(/^([a-zA-Z]):/, (m, d) => '/' + d.toLowerCase());
+  const args = `${nodes} ${threads} ${blocks} ${policy} ${pinning}`;
+  const cmd = `"${bashPath}" -lc "cd '${enginePathMsys}' && make run ARGS='${args}'"`;
+
+  console.log(`Running simulation via C engine: ${cmd}`);
+
+  exec(cmd, {
+    cwd: enginePath,
+    env: { ...process.env, MSYSTEM: "MINGW64", PATH: '/mingw64/bin:' + process.env.PATH }
+  }, (error, stdout, stderr) => {
+    if (error) {
+      console.error("Simulation error:", error);
+      console.error("Stderr:", stderr);
+      // Log stdout for debugging make errors
+      console.log("Stdout:", stdout);
+      return res.status(500).json({ error: error.message, stderr, stdout });
+    }
+
+    try {
+      if (!fs.existsSync(csvPath)) {
+        return res.status(500).json({ error: "Results file not found" });
+      }
+      const csv = fs.readFileSync(csvPath, "utf-8");
+      const lines = csv.trim().split("\n").slice(1); // skip header
+
+      const data = lines.filter(l => l.trim()).map((l) => {
+        const [thread, local, remote, time] = l.split(",");
+        return {
+          thread: Number(thread),
+          local: Number(local),
+          remote: Number(remote),
+          time: Number(time),
+        };
+      });
+      res.json(data);
+    } catch (e) {
+      console.error("Error parsing results:", e);
+      res.status(500).json({ error: "Failed to parse simulation results" });
+    }
+  });
 });
 
 app.get("/simulate/stream", (req, res) => {
