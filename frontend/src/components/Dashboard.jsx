@@ -157,7 +157,7 @@ export default function Dashboard() {
                     </div>
 
                     <div className="flex items-center gap-3 relative z-10 w-full md:w-auto justify-end">
-                        <Button variant="outline" onClick={() => window.open('https://github.com', '_blank')} className="h-10 text-xs">
+                        <Button variant="outline" onClick={() => window.open('https://github.com/SekhSujonHaque2005/numa-performance-analyzer', '_blank')} className="h-10 text-xs">
                             <Github className="w-3.5 h-3.5" /> Repo
                         </Button>
                         <Button variant="outline" onClick={() => window.open('https://en.wikipedia.org/wiki/Non-uniform_memory_access', '_blank')} className="h-10 text-xs">

@@ -42,7 +42,7 @@ export default function LandingPage() {
                     <span className="font-serif font-bold text-lg tracking-tight text-neutral-200">NUMA <span className="text-cyan-400">Analyzer</span></span>
                 </div>
                 <div className="flex gap-4">
-                    <button onClick={() => window.open('https://github.com', '_blank')} className="text-sm font-mono text-neutral-500 hover:text-cyan-400 transition-colors flex items-center gap-2">
+                    <button onClick={() => window.open('https://github.com/SekhSujonHaque2005/numa-performance-analyzer', '_blank')} className="text-sm font-mono text-neutral-500 hover:text-cyan-400 transition-colors flex items-center gap-2">
                         <Github className="w-4 h-4" /> GitHub
                     </button>
                     <button onClick={() => window.open('https://www.kernel.org/doc/html/latest/admin-guide/mm/numa_memory_policy.html', '_blank')} className="text-sm font-mono text-neutral-500 hover:text-cyan-400 transition-colors">Documentation</button>
