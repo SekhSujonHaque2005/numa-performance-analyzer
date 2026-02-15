@@ -18,6 +18,7 @@ This repository contains the **Frontend Visualization Layer**, built with modern
 -   **Scenario Comparison**: Side-by-side analysis of "Ideal" vs. "Stress" configurations with visual delta bars.
 -   **Professional Landing Page**: Research-grade entry point with direct access to academic resources.
 -   **Latency Heatmaps**: 2D matrix visualization of thread-to-node access patterns.
+-   **Robust Navigation**: Seamless SPA routing managed by React Router.
 
 ## 🚀 Quick Start
 
@@ -55,6 +56,7 @@ This frontend is part of a larger research suite. For full academic reproducibil
 
 -   **Framework**: React 18, Vite
 -   **Visualization**: Three.js, Recharts, Framer Motion
+-   **Routing**: React Router (v7)
 -   **Styling**: TailwindCSS, Lucide Icons
 -   **Language**: JavaScript (ES6+)
 
