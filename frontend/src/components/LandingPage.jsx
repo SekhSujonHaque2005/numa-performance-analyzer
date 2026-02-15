@@ -1,5 +1,6 @@
 import { motion } from "framer-motion";
 import { Activity, Cpu, Network, Zap, ChevronRight, Github, FlaskConical, BarChart3, Layers } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import Button from "./ui/Button";
 import ParticleBackground from "./ui/ParticleBackground";
 
@@ -19,7 +20,8 @@ const FeatureCard = ({ icon: Icon, title, description, delay }) => (
     </motion.div>
 );
 
-export default function LandingPage({ onStart }) {
+export default function LandingPage() {
+    const navigate = useNavigate();
     return (
         <div className="min-h-screen bg-black text-white selection:bg-cyan-500/30 font-sans overflow-x-hidden relative flex flex-col">
             <ParticleBackground />
@@ -73,7 +75,7 @@ export default function LandingPage({ onStart }) {
                         <motion.button
                             whileHover={{ scale: 1.05 }}
                             whileTap={{ scale: 0.95 }}
-                            onClick={onStart}
+                            onClick={() => navigate('/dashboard')}
                             className="bg-white text-black px-8 py-4 rounded-xl font-bold flex items-center gap-2 shadow-[0_0_40px_rgba(255,255,255,0.2)] hover:shadow-[0_0_60px_rgba(255,255,255,0.4)] transition-all"
                         >
                             Initialize Platform <ChevronRight className="w-4 h-4" />
